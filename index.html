@@ -1,35 +1,11 @@
-<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Näringsmall – kameraskanner</title><style>body{font:18px Arial,sans-serif;background:#f4f8f6;color:#173b32;max-width:640px;margin:auto;padding:16px}video{width:100%;background:#111;border-radius:12px;min-height:200px}button,input{font:inherit;padding:14px;border-radius:10px;margin:8px 0}button{background:#235e4d;color:white;border:0}input{width:100%;box-sizing:border-box}#status{white-space:pre-wrap}</style></head><body><h2>📷 Skanna streckkod</h2><video id="video" autoplay muted playsinline></video><p><button id="start">Starta kameran</button> <button id="stop">Stoppa kameran</button> <button id="torch" type="button" disabled>🔦 Testa ficklampan</button></p><label>Streckkod (manuell reservlösning)<input id="code" inputmode="numeric" autocomplete="off" placeholder="EAN"></label><button id="send">Sök produkt</button><p id="status" role="status"></p><script>
-const params=new URLSearchParams(location.search),app=params.get('app');let stream=null,detector=null,active=false,torchEnabled=false;
-const video=document.getElementById('video'),status=document.getElementById('status'),code=document.getElementById('code'),torchButton=document.getElementById('torch');
+<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Näringsmall – kameraskanner</title><style>body{font:18px Arial,sans-serif;background:#f4f8f6;color:#173b32;max-width:640px;margin:auto;padding:16px}video{width:100%;background:#111;border-radius:12px;min-height:200px}button,input{font:inherit;padding:14px;border-radius:10px;margin:8px 0}button{background:#235e4d;color:white;border:0}input{width:100%;box-sizing:border-box}#status{white-space:pre-wrap}</style></head><body><h2>📷 Skanna streckkod</h2><video id="video" autoplay muted playsinline></video><p><button id="start">Starta kameran</button> <button id="stop">Stoppa kameran</button></p><label>Streckkod (manuell reservlösning)<input id="code" inputmode="numeric" autocomplete="off" placeholder="EAN"></label><button id="send">Sök produkt</button><p id="status" role="status"></p><script>
+const params=new URLSearchParams(location.search),app=params.get('app');let stream=null,detector=null,active=false;
+const video=document.getElementById('video'),status=document.getElementById('status'),code=document.getElementById('code');
 function message(s){status.textContent=s}
-function stop(){active=false;torchEnabled=false;torchButton.disabled=true;torchButton.textContent='🔦 Testa ficklampan';if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}video.srcObject=null}
-function torchTrack(){return stream&&stream.getVideoTracks()[0]}
-function torchCapabilities(){
- const track=torchTrack();
- try{return track&&typeof track.getCapabilities==='function'?track.getCapabilities():{}}
- catch(e){return {}}
-}
-async function setTorch(on){
- const track=torchTrack();
- if(!track||typeof track.applyConstraints!=='function')return {ok:false,reason:'Kameraspåret kan inte styras.'};
- const caps=torchCapabilities();
- if(caps.torch!==true)return {ok:false,reason:'Kameran rapporterar inget stöd för ficklampan (torch).'};
- try{
-  await track.applyConstraints({advanced:[{torch:on}]});
-  const settings=typeof track.getSettings==='function'?track.getSettings():{};
-  if(settings.torch!==on)return {ok:false,reason:'Chrome kunde inte bekräfta att ficklampan '+(on?'tändes':'släcktes')+'.'};
-  torchEnabled=on;
-  torchButton.textContent=on?'🔦 Släck ficklampan':'🔦 Testa ficklampan';
-  return {ok:true};
- }catch(e){return {ok:false,reason:'Ficklampan kunde inte styras: '+e.message};}
-}
-async function toggleTorch(){
- const result=await setTorch(!torchEnabled);
- message(result.ok?(torchEnabled?'Ficklampan rapporteras som tänd. Lyser den verkligen?':'Ficklampan rapporteras som släckt.') :result.reason);
-}
+function stop(){active=false;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}video.srcObject=null}
 function send(){let v=code.value.trim();if(!/^\d{8,14}$/.test(v)){message('Ange 8–14 siffror.');return}if(!app||!/^https:\/\/script\.google\.com\/macros\/s\//.test(app)){message('Öppna skannern från knappen i Näringsmall först.');return}stop();let url=new URL(app);url.searchParams.set('barcode',v);location.assign(url.href)}
 async function scan(){if(!active)return;try{let matches=await detector.detect(video);let v=matches.map(x=>x.rawValue).find(x=>/^\d{8,14}$/.test(x));if(v){code.value=v;send();return}}catch(e){message('Avläsningsfel: '+e.message);stop();return}setTimeout(scan,250)}
-async function start(){stop();if(!('BarcodeDetector' in window)){message('Din webbläsare saknar stöd för automatisk streckkodsavläsning.');return}try{detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','itf','code_128']});stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});video.srcObject=stream;await video.play();active=true;torchButton.disabled=false;const torchResult=await setTorch(true);message('Rikta kameran mot streckkoden. '+(torchResult.ok?'Chrome rapporterar att ficklampan är på – kontrollera om den verkligen lyser.':torchResult.reason));scan()}catch(e){message('Kameran kunde inte startas: '+e.message);stop()}}
-torchButton.onclick=toggleTorch;document.getElementById('start').onclick=start;document.getElementById('stop').onclick=stop;document.getElementById('send').onclick=send;window.addEventListener('pagehide',stop);
+async function start(){stop();if(!('BarcodeDetector' in window)){message('Din webbläsare saknar stöd för automatisk streckkodsavläsning.');return}try{detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','itf','code_128']});stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});video.srcObject=stream;await video.play();active=true;message('Rikta kameran mot streckkoden.');scan()}catch(e){message('Kameran kunde inte startas: '+e.message);stop()}}
+document.getElementById('start').onclick=start;document.getElementById('stop').onclick=stop;document.getElementById('send').onclick=send;window.addEventListener('pagehide',stop);
 if(!app)message('Starta skannern via Näringsmall så kopplas den till rätt kalkylark.');
 </script></body></html>
