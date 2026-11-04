@@ -3,9 +3,19 @@ const params=new URLSearchParams(location.search),app=params.get('app');let stre
 const video=document.getElementById('video'),status=document.getElementById('status'),code=document.getElementById('code');
 function message(s){status.textContent=s}
 function stop(){active=false;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}video.srcObject=null}
+async function enableTorch(){
+ const track=stream&&stream.getVideoTracks()[0];
+ if(!track||typeof track.applyConstraints!=='function')return false;
+ try{
+  const caps=typeof track.getCapabilities==='function'?track.getCapabilities():{};
+  if(caps.torch===false)return false;
+  await track.applyConstraints({advanced:[{torch:true}]});
+  return true;
+ }catch(e){return false;}
+}
 function send(){let v=code.value.trim();if(!/^\d{8,14}$/.test(v)){message('Ange 8–14 siffror.');return}if(!app||!/^https:\/\/script\.google\.com\/macros\/s\//.test(app)){message('Öppna skannern från knappen i Näringsmall först.');return}stop();let url=new URL(app);url.searchParams.set('barcode',v);location.assign(url.href)}
 async function scan(){if(!active)return;try{let matches=await detector.detect(video);let v=matches.map(x=>x.rawValue).find(x=>/^\d{8,14}$/.test(x));if(v){code.value=v;send();return}}catch(e){message('Avläsningsfel: '+e.message);stop();return}setTimeout(scan,250)}
-async function start(){stop();if(!('BarcodeDetector' in window)){message('Din webbläsare saknar stöd för automatisk streckkodsavläsning.');return}try{detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','itf','code_128']});stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});video.srcObject=stream;await video.play();active=true;message('Rikta kameran mot streckkoden.');scan()}catch(e){message('Kameran kunde inte startas: '+e.message);stop()}}
+async function start(){stop();if(!('BarcodeDetector' in window)){message('Din webbläsare saknar stöd för automatisk streckkodsavläsning.');return}try{detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','itf','code_128']});stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});video.srcObject=stream;await video.play();active=true;const torchOn=await enableTorch();message('Rikta kameran mot streckkoden.'+(torchOn?' 🔦':' (Ficklampan stöds inte av kameran/webbläsaren.)'));scan()}catch(e){message('Kameran kunde inte startas: '+e.message);stop()}}
 document.getElementById('start').onclick=start;document.getElementById('stop').onclick=stop;document.getElementById('send').onclick=send;window.addEventListener('pagehide',stop);
 if(!app)message('Starta skannern via Näringsmall så kopplas den till rätt kalkylark.');
 </script></body></html>
